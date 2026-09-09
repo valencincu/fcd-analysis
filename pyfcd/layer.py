@@ -1,4 +1,6 @@
-known_materials = {"Air": 1.0003, "Glass": 1.5, "Acrylic": 1.48899, "Distilled_water": 1.34}
+import warnings
+
+known_materials = {"Air": 1.0003, "Glass": 1.5, "Acrylic": 1.48899, "Water": 1.34}
 
 
 class Layer:
@@ -17,7 +19,7 @@ class Layer:
                 self.refractive_index = refractive_index
             if material is not None:
                 self.refractive_index = refractive_index
-                raise Warning("Material and refractive index provided separately, you should choose only one way to determine the layer.")
+                warnings.warn("Material and refractive index provided separately, you should choose only one way to determine the layer.")
 
     def effective_height(self, fluid_refractive_index):
         return fluid_refractive_index * self.height / self.refractive_index

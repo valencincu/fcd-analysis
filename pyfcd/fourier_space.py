@@ -1,16 +1,16 @@
+import numpy as np
 from scipy.fft import fft2, fftshift, fftfreq, ifft2
 from skimage.measure import regionprops, label
-import numpy as np
 
 
-def wavenumber(size, calibration_factor=1, shifted=False):
+def wavenumber_axis(size, calibration_factor=1, shifted=True):
     frequencies = fftfreq(size, calibration_factor / (2.0 * np.pi))
     return fftshift(frequencies) if shifted else frequencies
 
 
-def wavenumber_meshgrid(shape, calibration_factor=1, shifted=False):
-    k_rows = wavenumber(shape[0], calibration_factor, shifted)
-    k_cols = wavenumber(shape[1], calibration_factor, shifted)
+def wavenumber_meshgrid(shape, calibration_factor=1, shifted=True):
+    k_rows = wavenumber_axis(shape[0], calibration_factor, shifted)
+    k_cols = wavenumber_axis(shape[1], calibration_factor, shifted)
     return np.meshgrid(k_rows, k_cols, indexing='ij')
 
 
@@ -22,18 +22,20 @@ def remove_degeneracy(kx, ky, shape):
         ky[shape[0]//2+1, :] = 0  # Remove degeneracy at ky=Ny/2 leading to imaginary part.
 
 
-def pixel_to_wavenumber(image_shape, locations, calibration_factor=1):
-    k_space_rows = wavenumber(image_shape[0], calibration_factor, shifted=True)
-    k_space_cols = wavenumber(image_shape[1], calibration_factor, shifted=True)
+def pixels_to_wavenumbers(image_shape, locations, calibration_factor=1):
+    k_space_rows = wavenumber_axis(image_shape[0], calibration_factor, shifted=True)
+    k_space_cols = wavenumber_axis(image_shape[1], calibration_factor, shifted=True)
 
     if isinstance(locations[0], np.ndarray):
-        return np.array([[k_space_rows[loc[0]], k_space_cols[loc[1]]] for loc in locations])
+        wavenumbers =  np.array([[k_space_rows[loc[0]], k_space_cols[loc[1]]] for loc in locations])
     else:
-        return np.array([k_space_rows[locations[0]], k_space_cols[locations[1]]])
+        wavenumbers = np.array([k_space_rows[locations[0]], k_space_cols[locations[1]]])
+
+    return wavenumbers
 
 
-def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO: Agregar contribución lineal opcional.
-    ky, kx = wavenumber_meshgrid(gradient_x.shape, calibration_factor)  # TODO: Precalcular esto en FCD() con referencia.
+def integrate_gradient(gradient_x, gradient_y, calibration_factor=1): 
+    ky, kx = wavenumber_meshgrid(gradient_x.shape, calibration_factor,shifted=False)  
     k2 = kx ** 2 + ky ** 2
     k2[0, 0] = 1
 
@@ -41,6 +43,7 @@ def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO:
 
     gradient_x_hat, gradient_y_hat = fft2(gradient_x), fft2(gradient_y)
     integrated_hat = (-1.0j * kx * gradient_x_hat + -1.0j * ky * gradient_y_hat) / k2
+
     return np.real(ifft2(integrated_hat))
 
 
@@ -64,7 +67,7 @@ def find_peak_locations(image, threshold, no_peaks):
     return [peak[1] for peak in sorted_blobs[:no_peaks]] 
 
 
-def find_peaks(image):
+def find_carrier_peaks(image):
     image_fft = fftshift(np.abs(fft2(image - np.mean(image))))
 
     def highpass_mask():
@@ -73,19 +76,19 @@ def find_peaks(image):
         return (ks_mesh_x**2 + ks_mesh_y**2) > kmin**2
 
     def angles(testing_peak):
-        testing_peak_frequency = pixel_to_wavenumber(image_fft.shape, testing_peak)
+        testing_peak_frequency = pixels_to_wavenumbers(image_fft.shape, testing_peak)
         return abs(np.arctan2(*testing_peak_frequency))
 
-    def dependendancy(testing_peak):
-        first_peak_frequency = pixel_to_wavenumber(image_fft.shape, rightmost_peak)
-        testing_peak_frequency = pixel_to_wavenumber(image_fft.shape, testing_peak)
+    def alignment(testing_peak):
+        first_peak_frequency   = pixels_to_wavenumbers(image_fft.shape, rightmost_peak)
+        testing_peak_frequency = pixels_to_wavenumbers(image_fft.shape, testing_peak)
         return abs(np.dot(first_peak_frequency, testing_peak_frequency))
 
     image_fft *= highpass_mask()
     threshold = 0.5 * np.max(image_fft)
 
-    peak_locations = find_peak_locations(image_fft, threshold, 4)
-    rightmost_peak = min(peak_locations, key=angles)
-    perpendicular_peak = min(peak_locations, key=dependendancy)
+    peak_locations     = find_peak_locations(image_fft, threshold, 4)
+    rightmost_peak     = min(peak_locations, key=angles)
+    perpendicular_peak = min(peak_locations, key=alignment)
 
     return rightmost_peak, perpendicular_peak

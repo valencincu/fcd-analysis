@@ -6,96 +6,94 @@ class HeightMap:
     def __init__(self, height_map, angles, calibration_factor):
         self.values = height_map
         self.angles = angles
+        self.shape  = height_map.shape
         self.calibration_factor = calibration_factor
-        self.coordinates = self.generate_coordinates()
 
-    def generate_coordinates(self):
-        xs = np.linspace(0, self.values.shape[1], self.values.shape[1]) * self.calibration_factor
-        ys = np.linspace(0, self.values.shape[0], self.values.shape[0]) * self.calibration_factor
-        return Coordinates(xs, ys)
+        x_length = self.values.shape[1]
+        y_length = self.values.shape[0]
+        self.x = np.linspace(0, x_length, x_length) * self.calibration_factor
+        self.y = np.linspace(0, y_length, y_length) * self.calibration_factor
 
-    def show_angles(self):
-        fig, axs = plt.subplots(1, 2)
+        self.x = self.x - self.x[len(self.x) // 2]
+        self.y = self.y - self.y[len(self.y) // 2]
+        self.x_mesh, self.y_mesh = np.meshgrid(self.x, self.y)
+
+    def plot_phases(self, fig=None, axs=None, show=True):
+        if fig is None:
+            fig, axs = plt.subplots(1, 2)
+        if axs is None:
+            axs = fig.axes
+
         for i, angles in enumerate(self.angles):
-            im = axs[i].contourf(self.coordinates.x_mesh*1e3, self.coordinates.y_mesh*1e3, self.angles[i], 100)
-            for c in im.collections: # Esto soluciona el problema de aliasing al guardar como .pdf.
-                c.set_edgecolor("face")
+            im = axs[i].contourf(self.x_mesh*1e3, self.y_mesh*1e3, angles, 100)
             cbar = fig.colorbar(im, ax=axs[i])
-            cbar.set_label('Ángulo [rad]', rotation=270, labelpad=15)
-            axs[i].set_xlabel('Posición x [mm]')
-            axs[i].set_ylabel('Posición y [mm]')
+            cbar.set_label('Phase [rad]', rotation=270, labelpad=15)
+            axs[i].set_xlabel('$x$ [mm]')
+            axs[i].set_ylabel('$y$ [mm]')
             axs[i].set_aspect("equal")
-            axs[i].set_title(f"Phi_{i+1}.")
+            axs[i].set_title(f"Phase {i + 1}")
         plt.tight_layout()
-        plt.show()
 
-    def show(self, fig=None, axis=None, show_plot=True):  # TODO: Tal vez centrar por defecto.
-        if fig is None and axis is None:
-            fig, axis = plt.subplots()
-        im = axis.pcolormesh(self.coordinates.x_mesh * 1e3, self.coordinates.y_mesh * 1e3, self.values * 1e3)
-        cbar = fig.colorbar(im, ax=axis)
-        cbar.set_label('Altura [mm]', rotation=270, labelpad=15)
-        axis.set_xlabel('Posición x [mm]')
-        axis.set_ylabel('Posición y [mm]')
-        axis.set_aspect("equal")
-        if show_plot:
-            plt.show()
+        if show: plt.show()
         return fig
 
-    # TODO: agregar un radial_mean(self, center, max_radius) y devuelve el promedio y std. O se llamaría ¿angular_mean()?.
-    def show_slice(self, x_index=None, y_index=None, show_plot=True):  # TODO: Vertical u horizontal (¿o ángulo arbitrario, radial?), máximo o mínimo.
-        if x_index is None and y_index is None:
-            max_indexs = np.argwhere(np.max(self.values) == self.values)[0][::-1]
-        elif x_index is not None and y_index is None:
-            max_indexs = [x_index, 0]
-        elif x_index is None and y_index is not None:
-            max_indexs = [0, y_index]
+    def plot_map(self, fig=None, ax=None, show=True):
+
+        if fig is None:
+            fig, ax = plt.subplots()
+        elif ax is None:
+            ax = fig.add_subplot(111)
+        
+        im = ax.pcolormesh(self.x_mesh * 1e3, self.y_mesh * 1e3, self.values * 1e3)
+        cbar = fig.colorbar(im, ax=ax)
+        cbar.set_label('Height [mm]', rotation=270, labelpad=15)
+        ax.set_xlabel('$x$ [mm]')
+        ax.set_ylabel('$y$ [mm]')
+        ax.set_aspect("equal")
+
+        if show: plt.show()
+        return fig
+
+    def plot_slice(self, x_index=None, y_index=None, show=True):
+        if (x_index is None) == (y_index is None):
+            raise ValueError("Provide exactly one of x_index or y_index.")
+
+        fig, axs = plt.subplots(2, 1, gridspec_kw={"height_ratios": [3, 1]}, figsize=(6, 8))
+
+        if y_index is not None:
+            x = self.x.copy()
+            y = self.y.copy() - self.y[y_index]
+
+            x_mesh, y_mesh = np.meshgrid(x, y)
+
+            sliced = self.values[y_index, :]
+
+            image = axs[0].pcolormesh(x_mesh * 1e3, y_mesh * 1e3, self.values * 1e3)
+            fig.colorbar(image, ax=axs[0], label="Height [mm]")
+
+            axs[0].axhline(0, linestyle="--", linewidth=2, color="white")
+            axs[1].plot(x * 1e3, sliced * 1e3)
+
         else:
-            max_indexs = [x_index, y_index]
-        self.coordinates.recenter(max_indexs)
+            x = self.x.copy() - self.x[x_index]
+            y = self.y.copy()
 
-        fig, axs = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]}, figsize=(6, 8))
-        self.show(fig, axs[0], show_plot=False)
+            x_mesh, y_mesh = np.meshgrid(x, y)
 
-        axs[0].hlines(0, self.coordinates.x[0] * 1e3, self.coordinates.x[-1] * 1e3, linestyle='--', linewidth=2, color='white')
-        axs[0].scatter([0], [0], color="white")
+            sliced = self.values[:,x_index]
 
-        sliced = self.values[max_indexs[1], :]
-        axs[1].plot(self.coordinates.x * 1e3, sliced * 1e3)
-        axs[1].set_ylabel("Altura [mm]")
-        axs[1].set_xlabel("Posición [mm]")
-        plt.tight_layout()
+            image = axs[0].pcolormesh(x_mesh * 1e3, y_mesh * 1e3, self.values * 1e3)
+            fig.colorbar(image, ax=axs[0], label="Height [mm]")
 
-        if show_plot:
-            plt.show()
+            axs[0].axvline(0, linestyle="--", linewidth=2, color="white")
+            axs[1].plot(y * 1e3, sliced * 1e3)
+
+        axs[0].set_xlabel(f"$x$ [mm]")
+        axs[0].set_ylabel(f"$y$ [mm]")
+        axs[0].set_aspect("equal")
+
+        axs[1].set_ylabel("Height [mm]")
+        axs[1].set_xlabel("Position [mm]")
+
+        if show: plt.show()
         return fig
-
-
-class Coordinates:
-    def __init__(self, xs, ys):
-        self.x = xs
-        self.y = ys
-        self._x_mesh = None
-        self._y_mesh = None
-
-    def _calculate_meshgrid(self):
-        self._x_mesh, self._y_mesh = np.meshgrid(self.x, self.y)
-
-    @property
-    def x_mesh(self):
-        if self._x_mesh is None:
-            self._calculate_meshgrid()
-        return self._x_mesh
-
-    @property
-    def y_mesh(self):
-        if self._y_mesh is None:
-            self._calculate_meshgrid()
-        return self._y_mesh
-
-    def recenter(self, new_center_indexs):
-        self.x -= self.x[new_center_indexs[0]]
-        self.y -= self.y[new_center_indexs[1]]
-
-        if self._x_mesh is not None or self._y_mesh is not None:
-            self._calculate_meshgrid()
