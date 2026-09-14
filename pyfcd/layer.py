@@ -1,6 +1,6 @@
 import warnings
 
-known_materials = {"Air": 1.0003, "Glass": 1.5, "Acrylic": 1.48899, "Water": 1.34}
+refractive_indexes = {"Air": 1.0003, "Glass": 1.5, "Acrylic": 1.48899, "Water": 1.34}
 
 
 class Layer:
@@ -8,8 +8,8 @@ class Layer:
         self.height = height
         if refractive_index is None:
             if material is not None:
-                if material in known_materials.keys():
-                    self.refractive_index = known_materials[material]
+                if material in refractive_indexes.keys():
+                    self.refractive_index = refractive_indexes[material]
                 else:
                     raise KeyError(f"Dont know {material}, provide refractive index.")
             if material is None:

@@ -1,91 +1,161 @@
+import numpy as np
 import cv2
+import matplotlib.patches as patches
+from warnings import warn
 
+
+def _2dim_requirements(element):
+    if len(element) != 2 or not all(isinstance(item, int) for item in element):
+        raise Exception('ROI: element must be an iterable with 2 integers.')
+
+
+def _rect_requirements(rect):
+    rect = rect[:]
+    if not isinstance(rect, tuple) or len(rect) != 4 or not all(isinstance(item, int) for item in rect):
+        raise Exception('ROI: rect must be a ROI or a tuple with 4 integers')
 
 class ROI:
-    def __init__(self, image, rect):
-        self.image_shape = image.original.shape
-        self._rect = None  # TODO: tal vez más "clean" tener funión que switchee llamada acá y por el setter.
-        self.rect = rect
+    def __init__(self, region, rect=None, select=False):
+        self._region = region if isinstance(region, tuple) else region.shape
+        _2dim_requirements(self._region)
+
+        height, width = self._region
+        self._rect = (0, 0, width, height)
+
+        if rect is not None:
+            _rect_requirements(rect)
+            self._rect = tuple(rect[:])
+
+        elif select:
+            cv2.namedWindow('Select ROI', cv2.WINDOW_NORMAL)
+            self._rect = cv2.selectROI('Select ROI', region)
+            cv2.destroyWindow('Select ROI')
 
     def __getitem__(self, item):
         return self._rect[item]
+
+    def __add__(self, vector):
+        _2dim_requirements(vector)
+        rect = (self[0] + vector[0], self[1] + vector[1], self[2], self[3])
+        return ROI(region=self._region, rect=rect)
+
+    def __sub__(self, vector):
+        _2dim_requirements(vector)
+        rect = (self[0] - vector[0], self[1] - vector[1], self[2], self[3])
+        return ROI(region=self._region, rect=rect)
+
+    def __mul__(self, factor):
+        rect = (self[0], self[1], self[2] * factor, self[3] * factor)
+        return ROI(region=self._region, rect=rect).recenter(self.center)
+
+    def __floordiv__(self, factor): 
+        rect = (self[0], self[1], self[2] // factor, self[3] // factor)
+        return ROI(region=self._region, rect=rect).recenter(self.center)
+    
+    def __str__(self):
+        return f'ROI: {self.rect}, center: {self.center}, shape: {self.shape}'
 
     @property
     def rect(self):
         return self._rect
 
-    @rect.setter
-    def rect(self, new_roi):
-        if isinstance(new_roi, ROI):
-            self._rect = new_roi.rect  # TODO: tal vez cambiar el nombre del argumento.
-        elif isinstance(new_roi, tuple):
-            self._rect = new_roi  # TODO: hay que asegurarse que sean tuplas y no listas, sino problemas al copiar.
-        else:
-            self._rect = self.null_roi()
+    @property
+    def shape(self): 
+        return (self[3], self[2])
 
-    def null_roi(self):
-        return (0, 0, *self.image_shape)
+    @property
+    def center(self):
+        shape = self.shape
+        return (self[0] + shape[1] // 2, self[1] + shape[0] // 2)
+    
+    @property
+    def corner(self):
+        return (self[0], self[1])
 
-    def local_to_absolute(self, local_coordinates):
-        return [local_coordinates[0] + self._rect[0], local_coordinates[1] + self._rect[1]]
+    @property
+    def limits(self):
+        return (self[0], self[0] + self[2], self[1], self[1] + self[3])
 
-    def update_roi_center(self, new_center):
-        x_old, y_old, w, h = self._rect
-        cx, cy = new_center
+    @property
+    def xi(self):
+        return self.limits[0]
 
-        new_x = cx - w // 2
-        new_y = cy - h // 2
-        return (new_x, new_y, w, h)
+    @property
+    def xf(self):
+        return self.limits[1]
 
-    def new_roi_from_center(self, center, dimensions=None):
-        if dimensions is None:
-            dimensions = [self._rect[2], self._rect[3]]
-        return (center[0] - dimensions[0] // 2, center[1] - dimensions[1] // 2, dimensions[0], dimensions[1])
+    @property
+    def yi(self):
+        return self.limits[2]
 
-    def new_roi_from_corner(self, corner, dimensions=None):
-        if dimensions is None:
-            dimensions = [self._rect[2], self._rect[3]]
-        return (corner[0], corner[1], dimensions[0], dimensions[1])
+    @property
+    def yf(self):
+        return self.limits[3]
 
-    def get_center(self):
-        return [self._rect[0] + self._rect[2] // 2, self._rect[1] + self._rect[3] // 2]
 
-    def expanded(self, factor_x=5, factor_y=None):
-        if factor_y is None:
-            factor_y = factor_x
-        new_x = max(self._rect[0] - factor_x, 0)
-        new_y = max(self._rect[1] - factor_y, 0)
-        new_w = min(self._rect[2] + 2 * factor_x, self.image_shape[1])
-        new_h = min(self._rect[3] + 2 * factor_y, self.image_shape[0])
-        return (new_x, new_y, new_w, new_h)
+    def reset(self):
+        height, width = self._region
+        rect = (0, 0, width, height)
+        return ROI(region=self._region, rect=rect)
 
-    def squared(self):
+    def local_to_absolute(self, local):
+        _2dim_requirements(local)
+        return (local[0] + self[0], local[1] + self[1])
+
+    def absolute_to_local(self, absolute):
+        _2dim_requirements(absolute)
+        return (absolute[0] - self[0], absolute[1] - self[1])
+
+    def recenter(self, new_center):
+        _2dim_requirements(new_center)
+        return self - self.center + new_center
+
+    def reshape(self, new_shape): 
+        _2dim_requirements(new_shape)
+        return ROI(region=self._region, rect=(self[0], self[1], new_shape[1], new_shape[0])).recenter(self.center)
+
+    def recorner(self, new_corner): 
+        _2dim_requirements(new_corner)
+        return self - self.corner + new_corner
+
+
+    def scale(self, factor): 
+        return self * factor
+
+    def rotate(self, center, angle): 
+        rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
+        M = rot_mat[:,:2]
+        v = rot_mat[:,2]
+        new_center = (M @ np.array(self.center) + v).astype('int').tolist()
+        return self.recenter(new_center)
+
+    def square(self):
+        center = self.center
+        rect = (self[0], self[1]) + (min(self.shape),)*2
+        return ROI(region=self._region, rect=rect).recenter(center)
+
+    def apply_bounds(self):
+        image = np.zeros(self._region)
         x, y, w, h = self._rect
-        size = min(w, h)
-        x_adjusted = x + (w - size) // 2
-        y_adjusted = y + (h - size) // 2
-        return (x_adjusted, y_adjusted, size, size)
+        new_h, new_w = image[max(0, y):y+h, max(0, x):x+w].shape
+        if new_h == 0 or new_w == 0: 
+            warn('ROI: roi is out of image bounds and has been reset')
+            return self.reset()
+        new_x, new_y = max(0, self[0]), max(0, self[1])
+        return ROI(region=self._region, rect = (new_x, new_y, new_w, new_h))
 
-    def scaled(self, image, window_name="Select ROI", width=500, height=500):
-        height_original, width_original = image.shape[:2]
-        img_scaled = cv2.resize(image, (width, height))
-
-        rect_scaled = cv2.selectROI(window_name, img_scaled)
-        cv2.destroyWindow(window_name)
-
-        x_scaled, y_scaled, w_scaled, h_scaled = rect_scaled
-        scale_y = height_original / height
-        scale_x = width_original / width
-
-        x_original = int(x_scaled * scale_x)
-        y_original = int(y_scaled * scale_y)
-        w_original = int(w_scaled * scale_x)
-        h_original = int(h_scaled * scale_y)
-        return (x_original, y_original, w_original, h_original)
-
-    def update(self, image, window_name="Select ROI", scale_kwargs={"width": 500, "height": 500}):
-        if scale_kwargs is not None:
-            rect = self.scaled(image, window_name, **scale_kwargs)
-        else:
-            rect = cv2.selectROI(window_name, image)  # TODO: Organizar esto un poco.
+    @property
+    def patch(self):
+        rect = patches.Rectangle(self.corner, self[2], self[3], linewidth=1, edgecolor='r', facecolor='none')
         return rect
+
+    
+if __name__ == '__main__' : 
+    image = np.zeros((100, 150))
+    roi1 = ROI(image)
+    roi2 = ( roi1 + (3, 4) )*2
+    roi3 = roi2.recenter((0,0))
+
+    print(roi1)
+    print(roi2)
+    print(roi3)

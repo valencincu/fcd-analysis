@@ -35,7 +35,7 @@ class FCD:
         displaced_image_fft = self._fft_image(displaced_image)
         phases              = self._find_phases(displaced_image_fft, unwrap)
         displacement_field  = self._find_displacement_field(phases)
-        height_gradient     = -displacement_field / self.effective_height
+        height_gradient     = -displacement_field / (self.effective_height)
 
         height_map = fourier_space.integrate_gradient(*height_gradient, self.calibration_factor)
         if fixed_loc is not None:
