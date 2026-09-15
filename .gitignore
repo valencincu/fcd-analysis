@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 analysis/
+gif/
 build/
 develop-eggs/
 dist/

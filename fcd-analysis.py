@@ -1,4 +1,5 @@
 #%% SELECT DATA DIRECTORY
+import os
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 
@@ -8,7 +9,6 @@ print(f"Analyzing: {dirname}")
 
 #%% IMPORT LIBRARIES
 import h5py
-import os
 import matplotlib.pyplot as plt
 import numpy as np
 import scienceplots
@@ -101,7 +101,7 @@ notes_path.write_text(data)
 
 # %% ANALYZE
 f = h5py.File(save_dir / "height_maps.hdf5", "w")
-height_maps = f.create_dataset("height_maps", (video.length // step, *roi.shape))
+height_maps = f.create_dataset("height_maps", (video.length // step, *roi.shape), dtype=np.float16)
 f.create_dataset("fps", data=(video.fps,), dtype=np.float16)
 f.create_dataset("calibration_factor", data=(fcd.calibration_factor,))
 f.create_dataset("effective_height", data=(fcd.effective_height,))
@@ -126,7 +126,7 @@ for frame in tqdm(video.play(step=step)):
     i = video.current_frame_index // step
 
     height_map     = apply_fcd(frame)
-    height_maps[i] = height_map
+    height_maps[i] = height_map.astype(np.float16)
 
     if (i % 10) == 0: 
         panel_update(fig, axs, frame, height_map, vmin=-max_height, vmax=max_height)

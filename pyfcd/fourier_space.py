@@ -48,7 +48,7 @@ def integrate_gradient(gradient_x, gradient_y, calibration_factor=1):
 
 
 def find_peak_locations(image, threshold, no_peaks):
-    blob_image = np.array(image > threshold)  # TODO: el np.array() no es necesario pero sino piensa que blob es tipo bool.
+    blob_image = np.array(image > threshold)
 
     # make the borders false
     blob_image[0] *= False

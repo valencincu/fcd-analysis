@@ -8,7 +8,6 @@ import scipy.fft as fft
 
 from pydata.image import Image
 
-
 def read_metadata(path):
     metadata_file = glob.glob(os.path.join(path, "*.cih"))[0]
     metadata = {}

@@ -24,11 +24,6 @@ save_dir =  os.path.abspath(save_dir_name)
 image_paths = os.listdir(data_dir_name)
 
 promediado = 0
-
-def normalize_image(img):
-    return (img - img.min()) / (img.max() - img.min())
-
-
 N = 0
 for image_path in image_paths:
     extension = image_path.split(".")[-1].lower() if "." in image_path else ""

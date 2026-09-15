@@ -27,9 +27,9 @@ class HeightMap:
         for i, angles in enumerate(self.angles):
             im = axs[i].contourf(self.x_mesh*1e3, self.y_mesh*1e3, angles, 100)
             cbar = fig.colorbar(im, ax=axs[i])
-            cbar.set_label('Phase [rad]', rotation=270, labelpad=15)
-            axs[i].set_xlabel('$x$ [mm]')
-            axs[i].set_ylabel('$y$ [mm]')
+            cbar.set_label("Phase [rad]", rotation=270, labelpad=15)
+            axs[i].set_xlabel("$x$ [mm]")
+            axs[i].set_ylabel("$y$ [mm]")
             axs[i].set_aspect("equal")
             axs[i].set_title(f"Phase {i + 1}")
         plt.tight_layout()
@@ -46,9 +46,9 @@ class HeightMap:
         
         im = ax.pcolormesh(self.x_mesh * 1e3, self.y_mesh * 1e3, self.values * 1e3)
         cbar = fig.colorbar(im, ax=ax)
-        cbar.set_label('Height [mm]', rotation=270, labelpad=15)
-        ax.set_xlabel('$x$ [mm]')
-        ax.set_ylabel('$y$ [mm]')
+        cbar.set_label("Height [mm]", rotation=270, labelpad=15)
+        ax.set_xlabel("$x$ [mm]")
+        ax.set_ylabel("$y$ [mm]")
         ax.set_aspect("equal")
 
         if show: plt.show()
